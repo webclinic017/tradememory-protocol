@@ -17,6 +17,7 @@ from .db import Database
 from .embedding import embed_trade_context
 from .hybrid_recall import hybrid_recall
 from .owm import ContextVector, outcome_weighted_recall
+from .owm.anti_resonance import compute_recall_consonance
 from .owm.drift import compute_context_drift, compute_drift_summary
 from .owm_helpers import (
     ensure_tz,
@@ -38,6 +39,66 @@ def _get_db() -> Database:
     if _db is None:
         _db = Database()
     return _db
+
+
+def _build_ref_evidence(
+    database: Database, ref_ids: List[str]
+) -> List[Dict[str, Any]]:
+    """Hydrate ref trade IDs into (pnl_r, direction) tuples for consonance.
+
+    Refs that can't be loaded (missing trade or DB error) are silently skipped —
+    a missing ref contributes no evidence, which is the correct behaviour.
+    """
+    evidence: List[Dict[str, Any]] = []
+    for ref_id in ref_ids or []:
+        try:
+            ref_trade = database.get_trade(ref_id)
+        except Exception:
+            continue
+        if not ref_trade:
+            continue
+        evidence.append({
+            "pnl_r": ref_trade.get("pnl_r"),
+            "direction": ref_trade.get("direction"),
+        })
+    return evidence
+
+
+def _build_memory_context(
+    database: Database,
+    refs: List[str],
+    beliefs: List[str],
+    proposed_direction: Optional[str],
+) -> "MemoryContext":
+    """Build a MemoryContext with a real recall_consonance computation.
+
+    Centralises the wiring so all TDR-export paths produce consistent fields.
+    Imported lazily to avoid pulling pydantic at module load if MCP is unused.
+    """
+    from .domain.tdr import MemoryContext
+
+    ref_evidence = _build_ref_evidence(database, refs)
+    consonance = compute_recall_consonance(ref_evidence, proposed_direction)
+
+    neg_count = sum(
+        1 for r in ref_evidence
+        if isinstance(r.get("pnl_r"), (int, float)) and r["pnl_r"] < 0
+    )
+    neg_ratio = (neg_count / len(ref_evidence)) if ref_evidence else None
+
+    return MemoryContext(
+        similar_trades=refs,
+        relevant_beliefs=beliefs,
+        anti_resonance_applied=consonance.anti_resonance_applied,
+        recall_consonance_score=(
+            consonance.score if consonance.considered_count > 0 else None
+        ),
+        evidence_supporting_count=consonance.supporting_count,
+        evidence_opposing_count=consonance.opposing_count,
+        suppression_recommended=consonance.suppression_recommended,
+        negative_ratio=neg_ratio,
+        recall_count=len(refs),
+    )
 
 
 
@@ -967,11 +1028,11 @@ async def export_audit_trail(
         except Exception:
             pass
 
-        mem = MemoryContext(
-            similar_trades=refs,
-            relevant_beliefs=beliefs,
-            anti_resonance_applied=len(refs) > 0,
-            recall_count=len(refs),
+        mem = _build_memory_context(
+            database=database,
+            refs=refs,
+            beliefs=beliefs,
+            proposed_direction=trade.get("direction"),
         )
         tdr = TradingDecisionRecord.from_trade_record(trade, memory_ctx=mem)
         tdrs.append(tdr.model_dump(mode="json"))
@@ -1031,23 +1092,110 @@ async def verify_audit_hash(trade_id: str) -> dict:
     except Exception:
         pass
 
-    from .domain.tdr import MemoryContext
-    mem = MemoryContext(
-        similar_trades=refs,
-        relevant_beliefs=beliefs,
-        anti_resonance_applied=len(refs) > 0,
-        negative_ratio=None,
-        recall_count=len(refs),
+    mem = _build_memory_context(
+        database=database,
+        refs=refs,
+        beliefs=beliefs,
+        proposed_direction=trade.get("direction"),
     )
     tdr = TradingDecisionRecord.from_trade_record(trade, memory_ctx=mem)
     stored = tdr.data_hash
+
+    # Also surface the chain entry (if any) so callers can spot orphan
+    # records that pre-date the audit chain or that failed to chain on insert.
+    from .audit.chain import ChainBuilder
+    chain_entry = None
+    try:
+        with database.get_connection() as conn:
+            entry = ChainBuilder(conn).get_entry(trade_id)
+            if entry:
+                chain_entry = {
+                    "sequence_num": entry.sequence_num,
+                    "prev_hash": entry.prev_hash,
+                    "data_hash": entry.data_hash,
+                    "chained_at": entry.chained_at,
+                }
+    except Exception:
+        chain_entry = None
 
     return {
         "trade_id": trade_id,
         "stored_hash": stored,
         "recomputed_hash": recomputed,
         "verified": stored == recomputed,
+        "chain_entry": chain_entry,
     }
+
+
+@mcp.tool()
+async def verify_audit_chain(
+    from_seq: Optional[int] = None,
+    to_seq: Optional[int] = None,
+) -> dict:
+    """Verify the integrity of the audit chain.
+
+    Walks the chain from `from_seq` (default: 1, the genesis record) to
+    `to_seq` (default: latest), checking that every record's `prev_hash`
+    matches the previous record's `data_hash`, and that each `data_hash`
+    equals SHA256(prev_hash || content_hash).
+
+    Returns a dict with `verified`, `checked_count`, `first_break_at`,
+    `reason`. A `first_break_at` of None with `verified=True` means the
+    chain is intact across the verified range.
+
+    Args:
+        from_seq: Starting sequence_num (inclusive). None = from beginning.
+        to_seq: Ending sequence_num (inclusive). None = through latest.
+    """
+    from .audit.chain import ChainBuilder
+
+    database = _get_db()
+    with database.get_connection() as conn:
+        result = ChainBuilder(conn).verify_chain(from_seq=from_seq, to_seq=to_seq)
+    return result
+
+
+@mcp.tool()
+async def get_daily_root(date: str, rebuild: bool = False) -> dict:
+    """Get (or rebuild) the daily Merkle root for a UTC date.
+
+    The Merkle root summarises every audit_chain entry whose `chained_at`
+    falls inside the UTC day. Verifying this single 32-byte root proves
+    the integrity of every TDR for that day without re-walking each one.
+
+    Args:
+        date: Date in YYYY-MM-DD format (or full ISO datetime).
+        rebuild: If True, recompute and overwrite the stored root. If False
+            (default), return the existing stored root and a verification
+            check vs. a fresh recomputation.
+
+    Returns:
+        period_start, period_end, root_hash, prev_root_hash, record_count,
+        first_sequence, last_sequence, generated_at, verified (when not rebuilding).
+    """
+    from .audit.chain import ChainBuilder
+
+    database = _get_db()
+    with database.get_connection() as conn:
+        builder = ChainBuilder(conn)
+        if rebuild:
+            root = builder.build_daily_root(date)
+            return {
+                "period_start": root.period_start,
+                "period_end": root.period_end,
+                "root_hash": root.root_hash,
+                "prev_root_hash": root.prev_root_hash,
+                "record_count": root.record_count,
+                "first_sequence": root.first_sequence,
+                "last_sequence": root.last_sequence,
+                "generated_at": root.generated_at,
+                "rebuilt": True,
+            }
+        verify = builder.verify_daily_root(date)
+        return {
+            "date": date,
+            **verify,
+        }
 
 
 # ---------------------------------------------------------------------------

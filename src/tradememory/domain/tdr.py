@@ -24,12 +24,43 @@ class MemoryContext(BaseModel):
     )
     anti_resonance_applied: bool = Field(
         default=False,
-        description="Whether ensure_negative_balance() was invoked",
+        description=(
+            "True iff recall_consonance_score < APPLIED_THRESHOLD — i.e. recalled "
+            "evidence opposes the proposed direction enough to warrant a flag. "
+            "See owm/anti_resonance.py."
+        ),
+    )
+    recall_consonance_score: Optional[float] = Field(
+        default=None,
+        ge=0.0, le=1.0,
+        description=(
+            "Recall consonance in [0, 1]. 1.0 = recall evidence fully supports "
+            "the proposed direction; 0.0 = fully opposes. None = no proposed "
+            "direction or no usable refs."
+        ),
+    )
+    evidence_supporting_count: int = Field(
+        default=0,
+        description="Refs whose outcome supports the proposed direction.",
+    )
+    evidence_opposing_count: int = Field(
+        default=0,
+        description="Refs whose outcome opposes the proposed direction.",
+    )
+    suppression_recommended: bool = Field(
+        default=False,
+        description=(
+            "True iff recall_consonance_score < SUPPRESS_THRESHOLD — recall "
+            "strongly opposes; downstream agent should consider blocking the trade."
+        ),
     )
     negative_ratio: Optional[float] = Field(
         default=None,
         ge=0.0, le=1.0,
-        description="Fraction of negative memories in recall result",
+        description=(
+            "Fraction of refs with pnl_r < 0 (recall balance signal; see "
+            "hybrid_recall.ensure_negative_balance)."
+        ),
     )
     recall_count: int = Field(
         default=0,

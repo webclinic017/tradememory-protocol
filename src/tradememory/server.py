@@ -1305,11 +1305,41 @@ def _build_tdr(trade: Dict[str, Any], database=None) -> TradingDecisionRecord:
     except Exception:
         pass
 
+    from .owm.anti_resonance import compute_recall_consonance
+
+    # Hydrate refs into evidence (pnl_r, direction) for consonance scoring.
+    # Missing refs are silently skipped — they contribute no evidence.
+    ref_evidence: List[Dict[str, Any]] = []
+    for ref_id in refs or []:
+        try:
+            rt = database.get_trade(ref_id)
+        except Exception:
+            continue
+        if not rt:
+            continue
+        ref_evidence.append({
+            "pnl_r": rt.get("pnl_r"),
+            "direction": rt.get("direction"),
+        })
+
+    consonance = compute_recall_consonance(ref_evidence, trade.get("direction"))
+    neg_count = sum(
+        1 for r in ref_evidence
+        if isinstance(r.get("pnl_r"), (int, float)) and r["pnl_r"] < 0
+    )
+    neg_ratio = (neg_count / len(ref_evidence)) if ref_evidence else None
+
     mem = MemoryContext(
         similar_trades=refs,
         relevant_beliefs=beliefs,
-        anti_resonance_applied=len(refs) > 0,  # if recall was used, AR was applied
-        negative_ratio=None,
+        anti_resonance_applied=consonance.anti_resonance_applied,
+        recall_consonance_score=(
+            consonance.score if consonance.considered_count > 0 else None
+        ),
+        evidence_supporting_count=consonance.supporting_count,
+        evidence_opposing_count=consonance.opposing_count,
+        suppression_recommended=consonance.suppression_recommended,
+        negative_ratio=neg_ratio,
         recall_count=len(refs),
     )
     return TradingDecisionRecord.from_trade_record(trade, memory_ctx=mem)

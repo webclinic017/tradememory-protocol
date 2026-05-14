@@ -330,6 +330,43 @@ class Database:
                 )
             """)
 
+            # Audit chain — tamper-evident SHA256 chain over TDR content hashes.
+            # data_hash = SHA256(prev_hash || content_hash).
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS audit_chain (
+                    record_id TEXT PRIMARY KEY,
+                    sequence_num INTEGER NOT NULL UNIQUE,
+                    content_hash TEXT NOT NULL,
+                    prev_hash TEXT NOT NULL,
+                    data_hash TEXT NOT NULL,
+                    chained_at TEXT NOT NULL
+                )
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_audit_chain_seq
+                ON audit_chain(sequence_num)
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_audit_chain_chained_at
+                ON audit_chain(chained_at)
+            """)
+
+            # Audit roots — daily Merkle roots over audit_chain.data_hash.
+            # tsa_token reserved for RFC 3161 TimeStampToken (Phase 1.5).
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS audit_roots (
+                    period_start TEXT PRIMARY KEY,
+                    period_end TEXT NOT NULL,
+                    root_hash TEXT NOT NULL,
+                    prev_root_hash TEXT NOT NULL,
+                    record_count INTEGER NOT NULL,
+                    first_sequence INTEGER,
+                    last_sequence INTEGER,
+                    generated_at TEXT NOT NULL,
+                    tsa_token BLOB
+                )
+            """)
+
             conn.commit()
         finally:
             conn.close()
@@ -344,6 +381,10 @@ class Database:
         Returns:
             True if successful
         """
+        # Imported here to avoid circular import risk between db / domain.
+        from .audit.chain import ChainBuilder
+        from .domain.tdr import TradingDecisionRecord
+
         try:
             with self.get_connection() as conn:
                 # Convert datetime objects to ISO strings
@@ -352,12 +393,26 @@ class Database:
                 if isinstance(trade_data.get('exit_timestamp'), datetime):
                     trade_data['exit_timestamp'] = trade_data['exit_timestamp'].isoformat()
 
+                # Compute content_hash from the ORIGINAL (unserialised) market
+                # context so the hash is stable regardless of JSON ordering.
+                raw_market_ctx = trade_data.get('market_context', {})
+                content_hash = TradingDecisionRecord.compute_hash(
+                    trade_id=trade_data.get('id', ''),
+                    timestamp=trade_data.get('timestamp', ''),
+                    symbol=trade_data.get('symbol', ''),
+                    direction=trade_data.get('direction', '') or '',
+                    strategy=trade_data.get('strategy', ''),
+                    confidence=trade_data.get('confidence', 0.0),
+                    reasoning=trade_data.get('reasoning', ''),
+                    market_context=raw_market_ctx,
+                )
+
                 # Serialize JSON fields
-                trade_data['market_context'] = json.dumps(trade_data.get('market_context', {}))
+                trade_data['market_context'] = json.dumps(raw_market_ctx)
                 trade_data['trade_references'] = json.dumps(trade_data.get('references', []))
                 trade_data['tags'] = json.dumps(trade_data.get('tags', []))
 
-                conn.execute("""
+                cursor = conn.execute("""
                     INSERT OR IGNORE INTO trade_records VALUES (
                         :id, :timestamp, :symbol, :direction, :lot_size, :strategy,
                         :confidence, :reasoning, :market_context, :trade_references,
@@ -366,6 +421,23 @@ class Database:
                         :tags, :grade
                     )
                 """, trade_data)
+
+                # Only append to chain if a row was actually inserted (rowcount=1).
+                # OR IGNORE on duplicate id returns rowcount=0 — skip chain append.
+                if cursor.rowcount == 1:
+                    try:
+                        ChainBuilder(conn).append(
+                            record_id=trade_data['id'],
+                            content_hash=content_hash,
+                        )
+                    except Exception as chain_err:
+                        # Chain append failure should not silently corrupt — but
+                        # we don't want to roll back the trade either. Log loudly.
+                        logger.error(
+                            "audit chain append failed for %s: %s",
+                            trade_data.get('id'), chain_err,
+                        )
+                        raise
                 return True
         except sqlite3.Error as e:
             raise TradeMemoryDBError(f"Failed to insert trade: {e}") from e

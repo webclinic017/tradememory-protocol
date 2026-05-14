@@ -5,6 +5,58 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [0.5.2] - 2026-05-14
+
+### Added
+- **Audit chain (`audit/`).** Per-record content hashes are now linked into a
+  forward-chained SHA-256 chain (`chained_hash = SHA256(prev_hash || content_hash)`)
+  with a genesis block (`0` * 64). Tampering with any historical record
+  invalidates every subsequent link.
+  - `audit_chain` table: `record_id`, `sequence_num`, `content_hash`,
+    `prev_hash`, `data_hash`, `chained_at`.
+  - `audit_roots` table: daily UTC Merkle roots over `audit_chain.data_hash`,
+    themselves chained via `prev_root_hash`. `tsa_token` BLOB reserved for
+    RFC 3161 (Phase 1.5).
+  - New MCP tools: `verify_audit_chain(from_seq, to_seq)`,
+    `get_daily_root(date, rebuild=False)`.
+  - Existing `verify_audit_hash(trade_id)` now also surfaces the chain entry.
+  - `Database.insert_trade` automatically appends to the chain on a fresh
+    insert; duplicate-id inserts skip the chain append.
+  - `scripts/backfill_audit_chain.py` deterministically rebuilds the chain
+    and daily roots from `trade_records` (ORDER BY timestamp, id).
+  - 25 new tests in `tests/test_audit_chain.py`.
+- **Anti-resonance (`owm/anti_resonance.py`) — real algorithm.** Computes a
+  `recall_consonance_score` in `[0, 1]` evaluating whether recalled refs
+  collectively support (1.0) or oppose (0.0) the proposed direction.
+  - `anti_resonance_applied = score < APPLIED_THRESHOLD` (default 0.4) — i.e.
+    counter-evidence dominates. `suppression_recommended = score < 0.2`.
+  - `MemoryContext` gains `recall_consonance_score`,
+    `evidence_supporting_count`, `evidence_opposing_count`, and
+    `suppression_recommended`.
+  - 25 new tests in `tests/test_anti_resonance.py`.
+- **`LIMITATIONS.md`** at repo root, linked from README. Documents validated
+  vs. research-stage components, architecture gaps (no auth, no multi-tenancy,
+  parallel DB stacks), broker / LLM coverage, and a per-area roadmap.
+
+### Changed
+- **`MemoryContext.anti_resonance_applied`** is no longer `len(refs) > 0`. It
+  is now derived from `compute_recall_consonance` against the proposed
+  direction. The three call sites (`mcp_server.py` x2 and `server.py`) all
+  funnel through a `_build_memory_context` helper.
+- TDR `MemoryContext` description updated to reflect the real semantic.
+
+### Fixed
+- The three call sites in `mcp_server.py` and `server.py` that set
+  `anti_resonance_applied = len(refs) > 0` — a behavioural lie that was
+  flagged in the pre-OTSO audit. The flag now reflects actual counter-evidence.
+
+### Notes
+- 1,428 tests pass on this release (+50 new, no regressions). 0 failures.
+- Phase 5 INVALID result is retained in the research log and now explicitly
+  documented in `LIMITATIONS.md` Section 1.
+
+---
+
 ## [0.5.0] - 2026-03-16
 
 ### Added
