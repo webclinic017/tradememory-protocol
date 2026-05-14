@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Behavioral Drift Detection for AI Trading Agents: A Statistical Process Control Approach</title>
+<style>
+@page { size: A4; margin: 22mm 22mm 26mm 22mm; }
+
+:root {
+    --ink: #111;
+    --body: #1a1a1a;
+    --muted: #555;
+    --rule: #222;
+    --hairline: #ccc;
+    --accent: #1F4068;
+    --code-bg: #f5f3ee;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+    background: #fff;
+    color: var(--body);
+    font-family: "Latin Modern Roman", "Computer Modern", "STIX Two Text",
+                 "Source Serif Pro", "Cambria", Georgia, serif;
+    font-size: 10.5pt;
+    line-height: 1.5;
+    text-align: justify;
+    hyphens: auto;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+}
+
+.page-wrap { max-width: 170mm; margin: 0 auto; padding-top: 4mm; }
+
+h1.title {
+    font-family: "Latin Modern Roman", Georgia, serif;
+    font-weight: 700;
+    font-size: 18pt;
+    line-height: 1.15;
+    text-align: center;
+    color: var(--ink);
+    margin-bottom: 6mm;
+    letter-spacing: -0.005em;
+}
+
+.authors {
+    text-align: center;
+    margin-bottom: 1mm;
+    font-size: 11pt;
+}
+.affil {
+    text-align: center;
+    margin-bottom: 1mm;
+    color: var(--muted);
+    font-style: italic;
+    font-size: 10pt;
+}
+.email {
+    text-align: center;
+    font-family: "Latin Modern Mono", "Consolas", monospace;
+    font-size: 9pt;
+    color: var(--muted);
+    margin-bottom: 6mm;
+}
+
+.abstract {
+    margin: 8mm 8mm 8mm 8mm;
+    padding: 4mm 0;
+    border-top: 0.6pt solid var(--rule);
+    border-bottom: 0.6pt solid var(--rule);
+}
+.abstract h2 {
+    font-size: 10pt;
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin-bottom: 3mm;
+    font-weight: 600;
+    border: none;
+    padding: 0;
+}
+.abstract p {
+    font-size: 10pt;
+    line-height: 1.55;
+    text-indent: 0;
+}
+
+h2 {
+    font-family: "Latin Modern Roman", Georgia, serif;
+    font-weight: 700;
+    font-size: 12.5pt;
+    color: var(--ink);
+    margin-top: 8mm;
+    margin-bottom: 3mm;
+    padding-bottom: 1mm;
+    border-bottom: 0.4pt solid var(--hairline);
+    page-break-after: avoid;
+}
+
+h3 {
+    font-family: "Latin Modern Roman", Georgia, serif;
+    font-weight: 600;
+    font-size: 11pt;
+    color: var(--ink);
+    margin-top: 5mm;
+    margin-bottom: 2mm;
+    page-break-after: avoid;
+}
+
+p { margin-bottom: 3mm; text-indent: 4mm; }
+p:first-of-type, h2 + p, h3 + p, .abstract p { text-indent: 0; }
+
+ul, ol { margin: 0 0 3mm 7mm; padding-left: 3mm; }
+li { margin-bottom: 1mm; line-height: 1.55; }
+
+strong { font-weight: 700; }
+em { font-style: italic; }
+
+code {
+    font-family: "Latin Modern Mono", "JetBrains Mono", "Consolas", monospace;
+    font-size: 9.5pt;
+    background: var(--code-bg);
+    padding: 0 3px;
+    border-radius: 2px;
+}
+pre {
+    background: var(--code-bg);
+    padding: 3mm;
+    border-radius: 2px;
+    overflow-x: auto;
+    margin-bottom: 3mm;
+    font-size: 9pt;
+    line-height: 1.4;
+}
+pre code { background: transparent; padding: 0; }
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 4mm 0;
+    font-size: 9.5pt;
+    page-break-inside: avoid;
+}
+th, td {
+    padding: 4px 8px;
+    border-bottom: 0.4pt solid var(--hairline);
+    text-align: left;
+}
+thead th {
+    border-top: 0.6pt solid var(--rule);
+    border-bottom: 0.6pt solid var(--rule);
+    font-weight: 700;
+    background: transparent;
+}
+tbody tr:last-child td { border-bottom: 0.6pt solid var(--rule); }
+
+hr {
+    border: none;
+    border-top: 0.4pt solid var(--hairline);
+    margin: 6mm 0;
+}
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+blockquote {
+    margin: 3mm 6mm;
+    padding-left: 4mm;
+    border-left: 1.2pt solid var(--accent);
+    font-style: italic;
+    color: var(--muted);
+}
+
+/* References section */
+h2#references + ul, h2#references + p + ul {
+    list-style: none;
+    padding-left: 0;
+    margin-left: 0;
+}
+
+/* Math display blocks */
+.arithmatex { font-size: 11pt; }
+
+/* page numbers */
+.footer-note {
+    margin-top: 8mm;
+    text-align: center;
+    font-style: italic;
+    color: var(--muted);
+    font-size: 9pt;
+}
+</style>
+<script>
+  window.MathJax = {
+    tex: {
+      inlineMath: [['$', '$'], ['\\(', '\\)']],
+      displayMath: [['$$', '$$'], ['\\[', '\\]']],
+      processEscapes: true,
+      processEnvironments: true
+    },
+    options: {
+      skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+    }
+  };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+<div class="page-wrap">
+<h1 class="title">Behavioral Drift Detection for AI Trading Agents: A Statistical Process Control Approach</h1>
+<div class="authors">Syuan Wei Peng</div>
+<div class="affil">Mnemox AI, Taiwan</div>
+<div class="email">johnson90207@gmail.com</div>
+<div class="abstract"><h2>Abstract</h2>
+<p>AI trading agents operating autonomously in financial markets lack the ability to detect when their own behavior has degraded. Unlike market regime detection, which monitors external conditions, behavioral drift detection monitors the agent itself &ndash; asking whether its current performance deviates from its established baseline. We formulate this as a Statistical Process Control (SPC) problem and apply the Cumulative Sum (CUSUM) control chart, originally developed for manufacturing quality control, to monitor agent win rate deviations and automatically reduce position sizes when drift is detected. We tested three approaches: Bayesian Online Changepoint Detection (BOCPD), a Decision Quality Score (DQS), and CUSUM with adaptive baseline. BOCPD failed on sparse binary trade sequences; DQS achieved zero separation between winning and losing trades. Only CUSUM succeeded. Across 200 strategy configurations on two cryptocurrency markets (BTCUSDT, ETHUSDT) with 3 years of data and walk-forward validation, CUSUM-based position adjustment achieved a 73.5% win rate on drawdown reduction versus no calibration (<span class="arithmatex">\(d = 0.76\)</span>, <span class="arithmatex">\(p \approx 0\)</span>), outperforming three naive behavioral baselines. However, a simple equity drawdown threshold (MaxDDStop) outperformed CUSUM in 93.5% of strategies, demonstrating that outcome-based monitoring is more effective than behavioral monitoring for pure risk reduction. We argue that CUSUM&rsquo;s value lies in behavioral diagnostics &ndash; identifying <em>why</em> performance degrades &ndash; rather than risk mitigation, and recommend combining both approaches. We report both positive and negative results as contributions to the nascent field of agent behavioral quality control.</p>
+<hr />
+</div><h2>1. Introduction</h2>
+<p>The proliferation of AI-driven trading agents has introduced a class of autonomous systems that execute financial decisions with minimal human oversight. These agents &ndash; whether built on large language models (Li et al., 2024; Kim et al., 2025; Xiao et al., 2025), reinforcement learning (Yang et al., 2020), or rule-based strategies &ndash; share a common vulnerability: they cannot detect when their own behavior has drifted from what historically works.</p>
+<p>This is distinct from the well-studied problem of market regime detection. Market regime models ask &ldquo;has the market changed?&rdquo; Agent behavioral drift asks &ldquo;am I performing differently than I should be?&rdquo; The distinction matters because an agent can begin underperforming even when market conditions appear stable, due to subtle shifts in execution patterns, strategy parameter sensitivity, or data distribution drift (Gama et al., 2014). In the machine learning literature, this is related to concept drift &ndash; the phenomenon where the statistical properties of the target variable change over time (Lu et al., 2018). However, concept drift research focuses primarily on classifier retraining, whereas our problem requires real-time monitoring with immediate risk management actions.</p>
+<p>The consequences of undetected behavioral drift in autonomous trading are concrete and financially material. A strategy that maintained a 55% win rate during its in-sample calibration period may silently degrade to 40% over subsequent months. Without a detection mechanism, the agent continues trading at full position size, accumulating drawdown that a simple monitoring system could have mitigated. In institutional settings, undetected behavioral drift can trigger regulatory scrutiny: MiFID II requires algorithmic trading firms to have &ldquo;effective systems and risk controls&rdquo; (Article 17), and the EU AI Act classifies autonomous financial systems as high-risk, requiring ongoing monitoring of AI system performance post-deployment.</p>
+<p>We propose framing agent behavioral drift as a Statistical Process Control (SPC) problem. SPC methods, developed for manufacturing quality assurance beginning with Page (1954) and systematized by Montgomery (2012), are designed for precisely this type of monitoring: detecting when a process that was &ldquo;in control&rdquo; has shifted. The key insight is that an agent&rsquo;s sequence of trade outcomes &ndash; wins and losses &ndash; is analogous to a production line&rsquo;s quality measurements. When the process mean shifts (win rate degrades), the control chart should signal. This framing is natural but, to our knowledge, unexplored: while SPC has been discussed in financial contexts (Woodall &amp; Montgomery, 1999), it has not been applied to monitoring the behavioral consistency of autonomous trading agents.</p>
+<p>Why SPC rather than machine learning or Bayesian inference? The answer is data density. A trading agent producing 100&ndash;500 trades over several months generates sparse, binary outcome sequences. This is far too little data for neural network approaches and, as we demonstrate, insufficient for Bayesian Online Changepoint Detection (Adams &amp; MacKay, 2007), which requires dense continuous streams for reliable posterior inference. CUSUM, by contrast, was designed for exactly this regime: detecting mean shifts in sparse sequential data with known statistical guarantees on detection delay (Page, 1954). The practical implications are significant &ndash; a monitoring system that requires thousands of observations before producing actionable signals is useless for a trading agent that executes 5&ndash;10 trades per week.</p>
+<p>The position sizing response to detected drift is informed by the Kelly criterion literature (Kelly, 1956; Thorp, 2006). When an agent&rsquo;s win rate degrades, the Kelly-optimal bet size decreases. Our approach implements a simplified version: rather than continuously optimizing lot size via Kelly, we apply a binary reduction (<span class="arithmatex">\(\times 0.5\)</span>) when CUSUM signals drift, and restore full size when the signal clears. This discrete approach sacrifices optimality for robustness and interpretability.</p>
+<p>Our contributions are: (1) the first application of SPC to AI trading agent behavioral monitoring, formulated as a quality control problem rather than a prediction problem; (2) empirical validation across 200 strategies on two cryptocurrency markets showing CUSUM-based position adjustment outperforms three naive baselines on drawdown reduction with statistical significance; (3) honest negative results on BOCPD and DQS that narrow the design space for future agent monitoring systems; and (4) a discussion of the boundary between strategy-level and trade-level behavioral assessment.</p>
+<hr />
+<h2>2. Related Work</h2>
+<p><strong>AI trading agents with memory.</strong> FinMem (Li et al., 2024) introduced a three-layer memory architecture (working, episodic, semantic) for LLM-based trading, demonstrating that structured memory improves decision quality. ATLAS (Kim et al., 2025) explored multi-agent frameworks with adaptive prompt optimization, where agents dynamically refine their prompts based on recent trading outcomes. TradingAgents (Xiao et al., 2025) modeled collaborative multi-agent trading with role-specialized agents sharing context. Yang et al. (2020) proposed ensemble deep reinforcement learning for stock trading with automated position management. None of these systems monitor the agent&rsquo;s own behavioral trajectory over time; all focus on improving market analysis or decision-making without a self-diagnostic capability. Our work is complementary: behavioral monitoring can be layered on top of any of these architectures to detect when the agent&rsquo;s learned behavior has degraded.</p>
+<p><strong>Changepoint detection.</strong> Adams and MacKay (2007) developed Bayesian Online Changepoint Detection (BOCPD), which maintains a posterior distribution over run lengths and has been widely applied to financial time series for regime detection. BOCPD uses conjugate prior models (Beta-Bernoulli for binary data, Normal-Inverse-Gamma for continuous) to perform exact online inference. The algorithm has strong theoretical properties but, as we show, requires data densities that trading agent outcome sequences rarely achieve. Page (1954) introduced the Cumulative Sum control chart for detecting small persistent shifts in process means, a cornerstone of Statistical Process Control. CUSUM has formal bounds on Average Run Length (ARL) under both null and alternative hypotheses (Montgomery, 2012), making it suitable for applications where false alarm rates must be controlled. Woodall and Montgomery (1999) surveyed SPC research directions, including applications beyond manufacturing, but did not consider autonomous agent monitoring.</p>
+<p><strong>Concept drift in machine learning.</strong> The broader machine learning community has extensively studied concept drift &ndash; the phenomenon where the joint distribution <span class="arithmatex">\(P(X, Y)\)</span> changes over time (Gama et al., 2014; Lu et al., 2018). Concept drift detection methods include DDM (Drift Detection Method), EDDM, and ADWIN. However, these methods assume access to continuous prediction streams with ground truth labels arriving at each step. In trading, ground truth (whether a trade was profitable) arrives only when a position is closed, which may be hours or days after entry. This temporal sparsity makes standard concept drift detectors ill-suited for trading agent monitoring, motivating our use of SPC methods designed for sparse sequential data.</p>
+<p><strong>Position sizing and risk management.</strong> The Kelly criterion (Kelly, 1956; Thorp, 2006) provides the theoretically optimal bet size as a function of win rate and payoff ratio. Lopez de Prado (2018) discusses practical considerations for applying Kelly sizing in financial contexts, including the well-known problem of parameter estimation error leading to overbetting. Bailey and Lopez de Prado (2014) introduced the Deflated Sharpe Ratio to correct for multiple testing in strategy evaluation. Our approach can be viewed as a simplified adaptive Kelly system: when CUSUM detects that the win rate has shifted below baseline, the Kelly-optimal position size has decreased, and we respond with a discrete lot reduction.</p>
+<p><strong>Behavioral monitoring in non-trading domains.</strong> The concept of monitoring an agent&rsquo;s behavioral consistency has precedent in software reliability engineering, where CUSUM charts track defect rates in code releases, and in clinical trial monitoring, where sequential analysis methods (including CUSUM) track adverse event frequencies to enable early stopping decisions. Industrial SPC monitoring of process quality is a mature field with well-established methodology (Montgomery, 2012). To our knowledge, no prior work applies these methods to AI trading agent behavioral sequences &ndash; a gap we attribute to the recency of autonomous AI trading agents as a practical deployment category.</p>
+<p><strong>Memory and recall in RL.</strong> Prioritized Experience Replay (Schaul et al., 2015) demonstrated that weighting experience by temporal-difference error improves learning efficiency. Our system uses Outcome-Weighted Memory (OWM), a five-factor multiplicative recall model that extends prioritized replay concepts to trading agent memory. OWM scores memories by outcome quality, context similarity, recency, confidence, and affective state, producing a ranked set of relevant past experiences. Behavioral monitoring is built on top of OWM: the agent&rsquo;s trade outcome sequence, stored in episodic memory, provides the data stream that CUSUM monitors.</p>
+<hr />
+<h2>3. Method</h2>
+<h3>3.1 Problem Formulation</h3>
+<p>Let an agent execute a sequence of trades <span class="arithmatex">\(\{t_1, t_2, \ldots, t_n\}\)</span> where each trade produces a binary outcome <span class="arithmatex">\(x_i \in \{0, 1\}\)</span> (loss or win). The agent&rsquo;s baseline win rate <span class="arithmatex">\(\mu_0\)</span> is established from an in-sample (IS) calibration period. Behavioral drift occurs when the true win rate shifts to <span class="arithmatex">\(\mu_1 &lt; \mu_0\)</span> during the out-of-sample (OOS) period.</p>
+<p>We seek a monitoring statistic <span class="arithmatex">\(S_n\)</span> that (a) triggers an alert when sufficient evidence of drift accumulates, (b) does not trigger during normal variance, and (c) resets when performance recovers. This is the standard one-sided SPC formulation for detecting downward process mean shifts.</p>
+<h3>3.2 CUSUM with Adaptive Baseline</h3>
+<p>The CUSUM statistic tracks cumulative deviation from the baseline win rate:</p>
+<div class="arithmatex">\[S_n = \max\left(0, \ S_{n-1} + (\mu_0 - x_n)\right)\]</div>
+<p>where <span class="arithmatex">\(\mu_0\)</span> is the baseline win rate from IS data, and <span class="arithmatex">\(x_n = 1\)</span> if trade <span class="arithmatex">\(n\)</span> is a win, <span class="arithmatex">\(0\)</span> otherwise. The statistic <span class="arithmatex">\(S_n\)</span> increases by <span class="arithmatex">\(\mu_0\)</span> on each loss and decreases by <span class="arithmatex">\((1 - \mu_0)\)</span> on each win. The <span class="arithmatex">\(\max(0, \cdot)\)</span> operator resets the accumulator when performance recovers, preventing historical good performance from masking current degradation.</p>
+<p>An alert fires when <span class="arithmatex">\(S_n &gt; h\)</span> where <span class="arithmatex">\(h = 4.0\)</span> is the detection threshold. During an alert, the agent reduces its position size:</p>
+<div class="arithmatex">\[\text{lot}_n = \begin{cases} \text{lot}_{\text{base}} \times 0.5 &amp; \text{if } S_n &gt; h \\ \text{lot}_{\text{base}} &amp; \text{otherwise} \end{cases}\]</div>
+<p>The alert clears when <span class="arithmatex">\(S_n\)</span> returns to 0, indicating the win rate has recovered to baseline.</p>
+<p><strong>Omission of the allowance parameter.</strong> The textbook CUSUM formulation includes a slack parameter <span class="arithmatex">\(k\)</span> (also called the allowance or reference value): <span class="arithmatex">\(S_n = \max(0, S_{n-1} + (\mu_0 - x_n) - k)\)</span>, where <span class="arithmatex">\(k\)</span> typically equals half the shift magnitude one wishes to detect. We set <span class="arithmatex">\(k = 0\)</span> deliberately. For binary outcomes (<span class="arithmatex">\(x_n \in \{0, 1\}\)</span>), the observation already takes only two values, and the &ldquo;shift&rdquo; is a change in the Bernoulli parameter <span class="arithmatex">\(p\)</span>. Introducing <span class="arithmatex">\(k &gt; 0\)</span> would suppress the CUSUM response to small-to-moderate drift, which is precisely what we want to detect early. With <span class="arithmatex">\(k = 0\)</span>, the threshold <span class="arithmatex">\(h\)</span> alone controls sensitivity: a higher <span class="arithmatex">\(h\)</span> requires more cumulative evidence before triggering. We found <span class="arithmatex">\(h = 4.0\)</span> to be a reasonable default &ndash; it requires roughly the equivalent of 4 consecutive unexpected losses to trigger, providing a balance between detection speed and false alarm rate. We acknowledge that this makes our CUSUM maximally sensitive, resulting in an approximately 41% alert rate across all OOS trades, and discuss the implications in Section 5.4.</p>
+<p><strong>Warm-start protocol.</strong> The adaptive baseline is critical. Rather than using a hardcoded <span class="arithmatex">\(\mu_0 = 0.5\)</span>, we compute <span class="arithmatex">\(\mu_0\)</span> from the agent&rsquo;s IS trades. This addresses a failure mode discovered in early experiments: a hardcoded target produced 100% alert rates on 10 of 12 initial test configurations because most strategies&rsquo; true win rates were far from 0.5.</p>
+<p><strong>Adaptive baseline update.</strong> After an initial burn-in of 20 OOS trades, the baseline <span class="arithmatex">\(\mu_0\)</span> is updated to the agent&rsquo;s observed OOS win rate. This adaptive mechanism serves two purposes. First, it handles cases where OOS conditions differ structurally from IS (e.g., the IS period contained a trending market that inflated win rates). Second, it anchors CUSUM to the agent&rsquo;s current steady-state performance rather than its historical peak, reducing alert fatigue. However, this introduces a limitation: if the agent enters OOS already in a degraded state, the adapted baseline will be low, and CUSUM will not fire until performance degrades further below the already-poor baseline. We consider this an acceptable tradeoff &ndash; the alternative (fixed IS baseline) produces excessive false alarms that render the system unusable.</p>
+<h3>3.3 BOCPD: Why We Tested It and Why It Failed</h3>
+<p>Bayesian Online Changepoint Detection (Adams and MacKay, 2007) maintains a posterior distribution over the run length <span class="arithmatex">\(r_t\)</span> &ndash; the number of observations since the last changepoint. We implemented BOCPD with two conjugate models: Beta-Bernoulli for win/loss sequences and Normal-Inverse-Gamma for P&amp;L distributions.</p>
+<p>BOCPD failed for three reasons:</p>
+<ol>
+<li>
+<p><strong>Insufficient data density.</strong> BOCPD requires enough observations within each run segment to update the posterior meaningfully. A trading agent producing 100 OOS trades does not generate enough data for the posterior to converge before the next drift event. In our Level 0 synthetic tests, BOCPD changepoint probability never exceeded 0.21 even on a dramatic 65% to 25% win rate shift (with hazard rate <span class="arithmatex">\(\lambda = 50\)</span>).</p>
+</li>
+<li>
+<p><strong>Warm-start boundary artifact.</strong> After warm-starting with 200+ IS trades, BOCPD detected the IS-to-OOS boundary as a permanent changepoint and never recovered. The posterior became stuck at run length <span class="arithmatex">\(r = 1\)</span> indefinitely.</p>
+</li>
+<li>
+<p><strong>Binary data limitation.</strong> BOCPD was designed for dense continuous streams (e.g., sensor readings at 1 Hz). A binary win/loss sequence with gaps between trades provides far less information per observation than a continuous signal.</p>
+</li>
+</ol>
+<p>CUSUM, by contrast, was specifically designed for sparse binary sequences in manufacturing quality control. This explains its success where BOCPD failed.</p>
+<h3>3.4 DQS: Trade-Level Scoring and Why It Failed</h3>
+<p>We also developed a Decision Quality Score (DQS) &ndash; a five-factor pre-trade scoring system intended to predict individual trade quality based on regime match, position sizing, process adherence, risk state, and historical pattern match.</p>
+<p>DQS failed completely at the trade level. In diagnostic testing across three strategies, DQS produced identical scores for winning and losing trades:</p>
+<table>
+<thead>
+<tr>
+<th>Strategy</th>
+<th>DQS (Winners)</th>
+<th>DQS (Losers)</th>
+<th>Separation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TrendFollow</td>
+<td>4.90</td>
+<td>4.90</td>
+<td>0.000</td>
+</tr>
+<tr>
+<td>Breakout</td>
+<td>6.16</td>
+<td>6.16</td>
+<td>0.000</td>
+</tr>
+<tr>
+<td>MeanReversion</td>
+<td>5.67</td>
+<td>5.67</td>
+<td>0.000</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Root cause.</strong> All DQS factors use session-level information (overall strategy win rate, overall Kelly fraction, overall drawdown). Every trade from the same strategy in the same session sees the same historical context and therefore receives the same score. DQS distinguishes between strategies but cannot distinguish between trades within a strategy. This is a fundamental limitation: any feature that predicts individual trade outcomes is itself a trading signal, not a monitoring statistic.</p>
+<p>This negative result is important because it establishes a boundary: behavioral monitoring operates at the strategy level, not the trade level.</p>
+<hr />
+<h2>4. Experimental Setup</h2>
+<h3>4.1 Strategy Generation</h3>
+<p>We generated strategies from a parameter grid over five dimensions: trend threshold (0.3, 0.7, 1.5), ATR percentile filter (30, 50, 70), stop-loss (1.0, 1.5, 2.5 ATR), take-profit (1.5, 3.0, 5.0 ATR), and maximum hold period (12, 36, 72 bars). We filtered to require take-profit strictly greater than stop-loss (positive expectancy structure) and a minimum of 30 IS trades. From the <span class="arithmatex">\(3^5 = 243\)</span> parameter combinations, this filtering produced approximately 150 valid strategies. For each symbol-timeframe pair, the first 50 qualifying strategies were used, yielding 200 total experiments across 4 market segments. This grid-based approach avoids cherry-picking: the 200 strategies span a range of characteristics from tight-stop scalpers (<span class="arithmatex">\(\text{SL}=1.0\)</span>, hold <span class="arithmatex">\(\leq 12\)</span>) to wide-stop swing traders (<span class="arithmatex">\(\text{SL}=2.5\)</span>, hold <span class="arithmatex">\(\leq 72\)</span>).</p>
+<h3>4.2 Market Data</h3>
+<ul>
+<li><strong>Symbols</strong>: BTCUSDT, ETHUSDT</li>
+<li><strong>Timeframes</strong>: 1h, 4h</li>
+<li><strong>Data period</strong>: 1,095 days (3.0 years) of Binance OHLCV data</li>
+<li><strong>Walk-forward split</strong>: 67% in-sample / 33% out-of-sample</li>
+</ul>
+<p>Each symbol-timeframe combination runs 50 strategies, producing 200 total experiments.</p>
+<h3>4.3 Agents</h3>
+<p>Five agents execute identical trades on each strategy. All agents receive the same entry and exit signals; they differ only in position sizing logic:</p>
+<ol>
+<li><strong>BaseAgent</strong> &ndash; Fixed lot size, no calibration. The null hypothesis.</li>
+<li><strong>CUSUMOnly</strong> &ndash; CUSUM with adaptive baseline from IS trades. Lot <span class="arithmatex">\(\times 0.5\)</span> when alert fires. Never skips trades.</li>
+<li><strong>PeriodicReduce</strong> &ndash; Every 50 trades, reduces lot for 10 trades. No market intelligence.</li>
+<li><strong>RandomSkip</strong> &ndash; Randomly reduces lot on 30% of trades (seed = 42 for reproducibility). Tests whether CUSUM&rsquo;s timing is better than chance.</li>
+<li><strong>SimpleWR</strong> &ndash; Rolling 20-trade win rate; reduces lot when WR drops more than 10% below IS baseline. Uses the same warm-start as CUSUM. The strongest behavioral baseline.</li>
+<li><strong>MaxDDStop</strong> &ndash; Reduces lot when equity drawdown exceeds 15% of peak equity. This represents standard risk management practice: monitoring the equity curve rather than behavioral signals. Uses IS equity to establish the initial peak. The strongest outcome-based baseline.</li>
+</ol>
+<p>All agents apply the same <span class="arithmatex">\(\times 0.5\)</span> lot reduction factor when triggered, isolating the detection mechanism as the only variable.</p>
+<h3>4.4 Metrics</h3>
+<ul>
+<li><strong>Equity-adjusted max drawdown</strong>: Maximum peak-to-trough decline in lot-weighted equity, measured in dollars. This accounts for position sizing differences.</li>
+<li><strong>DD reduction</strong>: <span class="arithmatex">\(\text{DD}_{\text{baseline}} - \text{DD}_{\text{CUSUM}}\)</span>, positive values indicate CUSUM improvement.</li>
+<li><strong>Paired <span class="arithmatex">\(t\)</span>-test</strong>: One-sided test on the 200-element vector of DD differences (<span class="arithmatex">\(H_0\)</span>: mean difference <span class="arithmatex">\(\leq 0\)</span>).</li>
+<li><strong>Bootstrap 95% CI</strong>: 5,000 bootstrap resamples of the mean DD reduction.</li>
+<li><strong>Cohen&rsquo;s <span class="arithmatex">\(d\)</span></strong>: Standardized effect size.</li>
+</ul>
+<hr />
+<h2>5. Results</h2>
+<h3>5.1 CUSUM vs. Baselines</h3>
+<p>Table 1 shows CUSUM&rsquo;s pairwise performance against each baseline on drawdown reduction across all 200 strategies.</p>
+<p><strong>Table 1.</strong> CUSUM vs. baselines on equity-adjusted max drawdown reduction (positive = CUSUM better). All <span class="arithmatex">\(p\)</span>-values from one-sided paired <span class="arithmatex">\(t\)</span>-tests.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Comparison</th>
+<th style="text-align: center;">Win Rate</th>
+<th style="text-align: center;">Mean DD <span class="arithmatex">\(\Delta\)</span></th>
+<th style="text-align: center;"><span class="arithmatex">\(p\)</span>-value</th>
+<th style="text-align: center;">Cohen&rsquo;s <span class="arithmatex">\(d\)</span></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">vs. No calibration</td>
+<td style="text-align: center;">73.5%</td>
+<td style="text-align: center;">+3,840.02</td>
+<td style="text-align: center;"><span class="arithmatex">\(&lt; 10^{-6}\)</span></td>
+<td style="text-align: center;">0.76 (medium)</td>
+</tr>
+<tr>
+<td style="text-align: left;">vs. Periodic</td>
+<td style="text-align: center;">63.0%</td>
+<td style="text-align: center;">+2,650.13</td>
+<td style="text-align: center;"><span class="arithmatex">\(&lt; 10^{-6}\)</span></td>
+<td style="text-align: center;">0.59 (medium)</td>
+</tr>
+<tr>
+<td style="text-align: left;">vs. Random</td>
+<td style="text-align: center;">57.5%</td>
+<td style="text-align: center;">+1,546.95</td>
+<td style="text-align: center;"><span class="arithmatex">\(&lt; 10^{-6}\)</span></td>
+<td style="text-align: center;">0.39 (small)</td>
+</tr>
+<tr>
+<td style="text-align: left;">vs. Simple WR</td>
+<td style="text-align: center;">66.5%</td>
+<td style="text-align: center;">+1,532.53</td>
+<td style="text-align: center;"><span class="arithmatex">\(&lt; 10^{-6}\)</span></td>
+<td style="text-align: center;">0.45 (small)</td>
+</tr>
+<tr>
+<td style="text-align: left;">vs. MaxDDStop</td>
+<td style="text-align: center;"><strong>6.5%</strong></td>
+<td style="text-align: center;"><strong>-3,522.99</strong></td>
+<td style="text-align: center;">1.000</td>
+<td style="text-align: center;"><strong>-0.76 (medium)</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Bootstrap 95% CI for DD reduction vs. BaseAgent: [+3,180.69, +4,559.59]. The interval excludes zero.</p>
+<p>CUSUM also improved PnL on average: mean PnL change of +2,181.23 versus BaseAgent, with CUSUM producing better PnL in 60% of strategies.</p>
+<p><strong>The MaxDDStop result demands attention.</strong> MaxDDStop &ndash; a simple equity drawdown threshold with no behavioral intelligence &ndash; achieves a 99.5% win rate against BaseAgent (mean DD reduction +7,363.01), dramatically outperforming CUSUM&rsquo;s 73.5%. In head-to-head comparison, MaxDDStop beats CUSUM in 93.5% of strategies (<span class="arithmatex">\(d = 0.76\)</span>, <span class="arithmatex">\(p &lt; 10^{-6}\)</span>). This is arguably our most important result and is discussed in Section 6.2.</p>
+<h3>5.2 Per-Market Breakdown</h3>
+<p>Table 2 shows CUSUM performance broken down by symbol and timeframe.</p>
+<p><strong>Table 2.</strong> CUSUM vs. BaseAgent by market segment.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Segment</th>
+<th style="text-align: center;"><span class="arithmatex">\(N\)</span></th>
+<th style="text-align: center;">Mean DD <span class="arithmatex">\(\Delta\)</span></th>
+<th style="text-align: center;">Win Rate</th>
+<th style="text-align: center;"><span class="arithmatex">\(p\)</span>-value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">BTCUSDT 1h</td>
+<td style="text-align: center;">50</td>
+<td style="text-align: center;">+9,972.60</td>
+<td style="text-align: center;">100%</td>
+<td style="text-align: center;"><span class="arithmatex">\(&lt; 10^{-4}\)</span></td>
+</tr>
+<tr>
+<td style="text-align: left;">BTCUSDT 4h</td>
+<td style="text-align: center;">50</td>
+<td style="text-align: center;">+4,978.75</td>
+<td style="text-align: center;">76%</td>
+<td style="text-align: center;"><span class="arithmatex">\(&lt; 10^{-4}\)</span></td>
+</tr>
+<tr>
+<td style="text-align: left;">ETHUSDT 1h</td>
+<td style="text-align: center;">50</td>
+<td style="text-align: center;">+399.11</td>
+<td style="text-align: center;">98%</td>
+<td style="text-align: center;"><span class="arithmatex">\(&lt; 10^{-4}\)</span></td>
+</tr>
+<tr>
+<td style="text-align: left;">ETHUSDT 4h</td>
+<td style="text-align: center;">50</td>
+<td style="text-align: center;">+9.61</td>
+<td style="text-align: center;">20%</td>
+<td style="text-align: center;">0.2527</td>
+</tr>
+</tbody>
+</table>
+<p>The results reveal a clear pattern: CUSUM&rsquo;s effectiveness scales with trade frequency and price volatility. BTCUSDT 1h (highest trade count, largest price moves) shows the strongest effect. ETHUSDT 4h (fewest trades, smallest moves) shows no significant effect.</p>
+<h3>5.3 Robustness: Excluding the Dominant Segment</h3>
+<p>The BTCUSDT 1h segment shows a suspiciously perfect 100% win rate (50/50 strategies), raising the question of whether aggregate results are driven entirely by this segment. Table 3 reports statistics computed after excluding BTCUSDT 1h.</p>
+<p><strong>Table 3.</strong> CUSUM vs. baselines after excluding BTCUSDT 1h (<span class="arithmatex">\(N = 150\)</span>).</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Comparison</th>
+<th style="text-align: center;">Win Rate</th>
+<th style="text-align: center;">Mean DD <span class="arithmatex">\(\Delta\)</span></th>
+<th style="text-align: center;"><span class="arithmatex">\(p\)</span>-value</th>
+<th style="text-align: center;">Cohen&rsquo;s <span class="arithmatex">\(d\)</span></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">vs. No calibration</td>
+<td style="text-align: center;">64.7%</td>
+<td style="text-align: center;">+1,795.82</td>
+<td style="text-align: center;"><span class="arithmatex">\(&lt; 10^{-6}\)</span></td>
+<td style="text-align: center;">0.50 (medium)</td>
+</tr>
+<tr>
+<td style="text-align: left;">vs. Simple WR</td>
+<td style="text-align: center;">57.3%</td>
+<td style="text-align: center;">+151.13</td>
+<td style="text-align: center;">0.179</td>
+<td style="text-align: center;">0.08 (negligible)</td>
+</tr>
+</tbody>
+</table>
+<p>Bootstrap 95% CI for DD reduction vs. BaseAgent (without BTCUSDT 1h): [+1,255.96, +2,401.86]. The interval excludes zero.</p>
+<p>This robustness check reveals an important nuance. CUSUM&rsquo;s advantage over BaseAgent remains statistically significant after excluding the dominant segment (<span class="arithmatex">\(d = 0.50\)</span>, <span class="arithmatex">\(p &lt; 10^{-6}\)</span>), confirming that CUSUM provides genuine drawdown reduction beyond BTCUSDT 1h. However, the advantage over SimpleWR becomes statistically insignificant (<span class="arithmatex">\(p = 0.179\)</span>, <span class="arithmatex">\(d = 0.08\)</span>). This means that on the remaining three market segments (BTCUSDT 4h, ETHUSDT 1h, ETHUSDT 4h), SimpleWR achieves nearly identical drawdown reduction to CUSUM. The BTCUSDT 1h segment &ndash; with its high trade count and large price moves &ndash; is where CUSUM&rsquo;s cumulative evidence accumulation provides a measurable advantage over windowed approaches. On lower-frequency or lower-volatility segments, the simpler approach suffices.</p>
+<h3>5.4 Threshold Sensitivity</h3>
+<p>The CUSUM threshold <span class="arithmatex">\(h\)</span> controls the tradeoff between detection speed and false alarm rate. Table 4 reports results across five threshold values.</p>
+<p><strong>Table 4.</strong> CUSUM performance by threshold <span class="arithmatex">\(h\)</span> (vs. BaseAgent, all 200 strategies).</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: center;"><span class="arithmatex">\(h\)</span></th>
+<th style="text-align: center;">Win Rate</th>
+<th style="text-align: center;">Mean DD <span class="arithmatex">\(\Delta\)</span></th>
+<th style="text-align: center;">Cohen&rsquo;s <span class="arithmatex">\(d\)</span></th>
+<th style="text-align: center;">Alert Rate</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: center;">2.0</td>
+<td style="text-align: center;">86.5%</td>
+<td style="text-align: center;">+5,412.38</td>
+<td style="text-align: center;">0.88 (large)</td>
+<td style="text-align: center;">51.5%</td>
+</tr>
+<tr>
+<td style="text-align: center;">3.0</td>
+<td style="text-align: center;">81.5%</td>
+<td style="text-align: center;">+4,474.10</td>
+<td style="text-align: center;">0.81 (large)</td>
+<td style="text-align: center;">39.0%</td>
+</tr>
+<tr>
+<td style="text-align: center;">4.0</td>
+<td style="text-align: center;">73.0%</td>
+<td style="text-align: center;">+3,754.08</td>
+<td style="text-align: center;">0.78 (medium)</td>
+<td style="text-align: center;">30.5%</td>
+</tr>
+<tr>
+<td style="text-align: center;">5.0</td>
+<td style="text-align: center;">64.0%</td>
+<td style="text-align: center;">+2,789.88</td>
+<td style="text-align: center;">0.64 (medium)</td>
+<td style="text-align: center;">24.4%</td>
+</tr>
+<tr>
+<td style="text-align: center;">6.0</td>
+<td style="text-align: center;">58.0%</td>
+<td style="text-align: center;">+2,157.39</td>
+<td style="text-align: center;">0.57 (medium)</td>
+<td style="text-align: center;">19.1%</td>
+</tr>
+</tbody>
+</table>
+<p>All five threshold values achieve statistical significance (<span class="arithmatex">\(p &lt; 10^{-6}\)</span> for all). The relationship between <span class="arithmatex">\(h\)</span> and performance is monotonic: lower thresholds detect drift faster, producing higher win rates and larger DD reductions, but at the cost of higher alert rates (more frequent lot reductions). At <span class="arithmatex">\(h = 2.0\)</span>, CUSUM fires on 51.5% of OOS trades &ndash; essentially trading at half lot most of the time &ndash; while achieving the highest win rate (86.5%) and effect size (<span class="arithmatex">\(d = 0.88\)</span>). At <span class="arithmatex">\(h = 6.0\)</span>, CUSUM fires on only 19.1% of trades but still achieves a 58% win rate (<span class="arithmatex">\(d = 0.57\)</span>).</p>
+<p>The robustness of these results across all five threshold values is encouraging: the choice of <span class="arithmatex">\(h = 4.0\)</span> is not a lucky parameter pick. Any practitioner can choose <span class="arithmatex">\(h\)</span> based on their preferred tradeoff between detection sensitivity and intervention frequency. We note, however, that the strong performance of low-<span class="arithmatex">\(h\)</span> values (which fire very frequently) reinforces the concern raised in Section 5.1: much of CUSUM&rsquo;s drawdown reduction may come from the lot reduction itself rather than from the precision of drift detection timing.</p>
+<h3>5.5 Negative Results</h3>
+<p><strong>Table 5.</strong> Approaches that failed. Included as contributions to the field.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Approach</th>
+<th style="text-align: left;">Failure Mode</th>
+<th style="text-align: left;">Root Cause</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">BOCPD (Beta-Bernoulli)</td>
+<td style="text-align: left;">Max <span class="arithmatex">\(P(\text{changepoint}) = 0.21\)</span> on 65%<span class="arithmatex">\(\to\)</span>25% WR shift</td>
+<td style="text-align: left;">Data too sparse for posterior convergence</td>
+</tr>
+<tr>
+<td style="text-align: left;">BOCPD (warm-start)</td>
+<td style="text-align: left;">Stuck at run length = 1 after IS boundary</td>
+<td style="text-align: left;">IS<span class="arithmatex">\(\to\)</span>OOS transition detected as permanent changepoint</td>
+</tr>
+<tr>
+<td style="text-align: left;">DQS (trade-level)</td>
+<td style="text-align: left;">Separation = 0.000 across all strategies</td>
+<td style="text-align: left;">Session-level features cannot distinguish individual trades</td>
+</tr>
+<tr>
+<td style="text-align: left;">CalibratedAgent (Phase 5)</td>
+<td style="text-align: left;">Skipped 97% of trades, 48/100 zero-trade experiments</td>
+<td style="text-align: left;">DQS skip tier too aggressive on cold-start</td>
+</tr>
+</tbody>
+</table>
+<h3>5.4 Caveats</h3>
+<p>We flag four limitations that qualify the positive results:</p>
+<ol>
+<li>
+<p><strong>ETHUSDT 4h failure.</strong> CUSUM achieves only 20% win rate on this segment (<span class="arithmatex">\(p = 0.25\)</span>). On low-frequency data, strategies produce too few OOS trades for CUSUM to accumulate sufficient evidence before resetting. This establishes a minimum trade-count requirement for CUSUM applicability.</p>
+</li>
+<li>
+<p><strong>BTC dominance.</strong> BTCUSDT accounts for the majority of absolute DD reduction ($9,973 + $4,979 vs. $399 + $10 for ETHUSDT). BTC&rsquo;s larger price moves create larger absolute drawdowns, giving CUSUM more room to help. The effect may be partially an artifact of absolute dollar measurement.</p>
+</li>
+<li>
+<p><strong>CUSUM reduction rate.</strong> Across all experiments, CUSUM reduced lot size on approximately 41% of OOS trades. This is aggressive. On high-frequency data with many trades, the cumulative protection is substantial. On low-frequency data, CUSUM fires and resets without accumulating meaningful signal.</p>
+</li>
+<li>
+<p><strong>SimpleWR gap is small.</strong> While CUSUM beats SimpleWR with statistical significance (<span class="arithmatex">\(p &lt; 10^{-6}\)</span>), the practical effect size is modest (<span class="arithmatex">\(d = 0.45\)</span>). SimpleWR achieves approximately 80% of CUSUM&rsquo;s drawdown reduction with zero algorithmic complexity. Section 6 discusses whether CUSUM&rsquo;s statistical rigor justifies its additional complexity.</p>
+</li>
+<li>
+<p><strong>Strategy dependence.</strong> The 200 strategies share the same underlying price series within each market segment. Strategies evaluated on the same BTCUSDT 1h data will exhibit correlated drawdowns &ndash; a market crash produces simultaneous losses across all strategies. This violates the independence assumption of the paired <span class="arithmatex">\(t\)</span>-test, potentially inflating statistical significance. Our bootstrap confidence intervals partially mitigate this (they capture variance in the DD reduction distribution) but do not fully account for the temporal correlation structure. The extremely small reported <span class="arithmatex">\(p\)</span>-values (<span class="arithmatex">\(&lt; 10^{-6}\)</span>) should be interpreted with this caveat: the true effective sample size is smaller than 200 due to cross-strategy correlation. We note that the directional conclusions (CUSUM reduces DD more often than not) remain valid, as win rates are robust to dependence; it is the precision of <span class="arithmatex">\(p\)</span>-values that is affected.</p>
+</li>
+<li>
+<p><strong>Transaction costs.</strong> Our simulation does not model transaction costs, slippage, or market impact. CUSUM reduces lot size on approximately 41% of OOS trades, which in practice means more frequent lot size changes. While this does not increase the number of trades (CUSUM never skips trades), varying lot sizes may incur additional costs on platforms that charge per-lot fees or have minimum lot requirements. The practical impact depends on the trading venue and instrument.</p>
+</li>
+</ol>
+<hr />
+<h2>6. Discussion</h2>
+<h3>6.1 Why SPC Works for This Problem</h3>
+<p>The success of CUSUM and failure of BOCPD can be understood through the lens of data requirements. BOCPD maintains a full posterior distribution over run lengths, requiring enough data within each run segment to distinguish signal from noise. A trading agent producing 100&ndash;500 binary outcomes over months does not meet this requirement. CUSUM, by contrast, was designed for exactly this data regime &ndash; Page (1954) developed it for manufacturing settings where inspections might occur once per shift, producing sparse sequential observations.</p>
+<p>The binary nature of trade outcomes (win/loss) further favors CUSUM. The CUSUM statistic for binary data has a simple, interpretable form: it accumulates the deviation of observed wins from expected wins. No distributional assumptions beyond stationarity under the null hypothesis are needed.</p>
+<h3>6.2 The MaxDDStop Result: Behavioral vs. Outcome Monitoring</h3>
+<p>The most important result in this paper is arguably a negative one: MaxDDStop &ndash; a simple equity drawdown threshold &ndash; outperforms CUSUM in 93.5% of strategies with the same effect size (<span class="arithmatex">\(d = 0.76\)</span>) that CUSUM achieves against BaseAgent. This demands honest examination.</p>
+<p>MaxDDStop monitors the <strong>outcome</strong> (equity drawdown) and responds when the symptom appears. CUSUM monitors the <strong>behavior</strong> (win rate) and responds when the cause is detected. In theory, behavioral monitoring should fire earlier, because win rate degrades before its effects accumulate into a measurable equity drawdown. In practice, our data shows the opposite: MaxDDStop&rsquo;s 15% equity threshold triggers more reliably and more effectively than CUSUM&rsquo;s behavioral signal.</p>
+<p>Why? Three factors explain MaxDDStop&rsquo;s dominance:</p>
+<ol>
+<li>
+<p><strong>Direct measurement.</strong> MaxDDStop measures exactly what we want to minimize (equity drawdown). CUSUM measures a proxy (win rate deviation) that is correlated but not identical. A strategy can have acceptable win rate but suffer large drawdowns from a few outsized losses that CUSUM does not detect.</p>
+</li>
+<li>
+<p><strong>No warm-start sensitivity.</strong> MaxDDStop tracks the equity curve directly and does not depend on an IS baseline that may not reflect OOS conditions. CUSUM&rsquo;s adaptive baseline introduces a 20-trade burn-in period during which degradation goes undetected.</p>
+</li>
+<li>
+<p><strong>Higher alert coverage.</strong> MaxDDStop fires on 99.5% of strategies because virtually all strategies experience at least one drawdown exceeding 15% during OOS. Its protection is nearly universal, while CUSUM&rsquo;s behavioral signal is more selective.</p>
+</li>
+</ol>
+<p><strong>Does this make CUSUM worthless?</strong> Not entirely, but its role must be reframed. CUSUM&rsquo;s value is not in drawdown reduction &ndash; MaxDDStop does that better. CUSUM&rsquo;s value is <strong>diagnostic</strong>: it answers <em>why</em> performance is degrading, not just <em>that</em> it is degrading. A MaxDDStop alert tells you &ldquo;equity is down 15%.&rdquo; A CUSUM alert tells you &ldquo;win rate has shifted below baseline.&rdquo; The latter is actionable for strategy development: it suggests the strategy&rsquo;s edge has eroded, prompting parameter re-optimization or strategy retirement. MaxDDStop provides no such insight.</p>
+<p>In practice, we recommend combining both: MaxDDStop for immediate risk protection, CUSUM for behavioral diagnostics and audit trail. This combination is analogous to industrial practice, where control charts (CUSUM) coexist with alarm systems (MaxDDStop) &ndash; the alarm stops the line, the chart tells you why it stopped.</p>
+<h3>6.3 The SimpleWR Question</h3>
+<p>Without BTCUSDT 1h, CUSUM&rsquo;s advantage over SimpleWR becomes statistically insignificant (<span class="arithmatex">\(p = 0.179\)</span>, <span class="arithmatex">\(d = 0.08\)</span>). SimpleWR &ndash; a rolling 20-trade window &ndash; achieves comparable drawdown reduction with zero algorithmic complexity. CUSUM&rsquo;s theoretical advantages (ARL bounds, cumulative evidence for gradual drift) do not manifest as practical advantages in our data.</p>
+<p>This suggests that for behavioral monitoring specifically (as opposed to outcome monitoring via MaxDDStop), the choice between CUSUM and SimpleWR is a matter of preference, not performance. CUSUM offers formal statistical guarantees on detection delay; SimpleWR offers simplicity. In deployment contexts with regulatory requirements, CUSUM&rsquo;s formal properties may be preferred for audit and compliance purposes.</p>
+<h3>6.3 Connection to Adaptive Position Sizing</h3>
+<p>Our approach can be situated within the broader literature on adaptive position sizing. The Kelly criterion (Kelly, 1956) dictates that optimal bet size is a function of edge (win rate minus loss rate) and payoff ratio. When an agent&rsquo;s win rate degrades, the Kelly-optimal position decreases. CUSUM-based monitoring provides a mechanism to detect when this degradation has occurred, triggering a position reduction that approximates the directional adjustment Kelly would prescribe.</p>
+<p>However, our implementation is deliberately simpler than full Kelly optimization. We use a binary <span class="arithmatex">\(\times 0.5\)</span> reduction rather than a continuously adjusted lot size. This design choice reflects a practical reality: estimating the precise Kelly fraction requires accurate estimates of both win rate and average win/loss ratio, which are noisy with sparse data. A binary reduction is more robust to estimation error, though it sacrifices optimality. Future work could explore graduated reduction schedules (e.g., CUSUM-proportional lot sizing) to bridge the gap between our discrete approach and continuous Kelly adjustment.</p>
+<h3>6.4 Limitations</h3>
+<p>Several limitations constrain generalizability:</p>
+<ul>
+<li>
+<p><strong>Cryptocurrency only.</strong> We tested on BTCUSDT and ETHUSDT. Cryptocurrency markets have distinct volatility characteristics (24/7 trading, high kurtosis, correlation with macro events). Performance on forex, equities, or fixed income is unknown.</p>
+</li>
+<li>
+<p><strong>Synthetic strategies.</strong> All 200 strategies were generated from a parameter grid, not developed by human traders or trained ML models. Real-world strategies may exhibit different degradation patterns.</p>
+</li>
+<li>
+<p><strong>No live validation.</strong> All results are from historical walk-forward simulation. Live trading introduces execution slippage, latency, and market impact that simulations do not capture.</p>
+</li>
+<li>
+<p><strong>Single reduction factor.</strong> We used a fixed <span class="arithmatex">\(\times 0.5\)</span> lot reduction. The optimal reduction factor and CUSUM threshold (<span class="arithmatex">\(h = 4.0\)</span>) were not optimized; they represent reasonable defaults that may not be optimal for all strategy types.</p>
+</li>
+</ul>
+<h3>6.5 Broader Implications</h3>
+<p>As AI trading agents become more prevalent, the question of behavioral quality control will become unavoidable. Regulatory frameworks for autonomous trading (e.g., MiFID II algorithmic trading requirements, SEC Rule 15c3-5) increasingly require firms to demonstrate that their algorithms are operating within expected parameters. The EU AI Act classifies autonomous financial decision-making systems as high-risk, requiring continuous monitoring of AI system performance post-deployment. CUSUM-based behavioral monitoring provides a simple, interpretable, and statistically grounded mechanism for this purpose &ndash; one that produces a clear audit trail of when drift was detected, what evidence triggered the detection (the CUSUM statistic value), and what action was taken (lot reduction). This audit trail is naturally compatible with compliance reporting requirements.</p>
+<p>The negative results are equally important for the field. The failure of BOCPD on sparse binary sequences provides a clear guideline: when monitoring trading agent outcomes, use SPC methods designed for sparse data, not Bayesian changepoint detection methods that assume dense observation streams. The failure of trade-level DQS establishes that behavioral monitoring operates at the strategy level, not the individual trade level &ndash; a boundary that future research should respect. Any feature that could predict individual trade outcomes would itself constitute a trading signal, not a monitoring statistic; this observation explains why trade-level quality scoring is fundamentally ill-posed as a monitoring problem.</p>
+<p>We also note a broader implication for the AI agent safety community. The problem of detecting when an autonomous agent&rsquo;s behavior has drifted from its intended operating envelope is not unique to trading. Autonomous vehicles, industrial robots, and medical AI systems all face analogous challenges. SPC methods may be applicable to these domains as well, particularly when the agent&rsquo;s performance can be reduced to a binary or scalar quality signal observed sequentially over time.</p>
+<hr />
+<h2>7. Conclusion</h2>
+<p>We have presented the first application of Statistical Process Control to AI trading agent behavioral monitoring. The CUSUM control chart, with an adaptive baseline established from in-sample trades and updated after a 20-trade OOS burn-in, detects win rate degradation and reduces drawdown through automatic position sizing adjustment. Across 200 strategy configurations on BTCUSDT and ETHUSDT with 3 years of walk-forward validation, CUSUM achieved a 73.5% win rate on drawdown reduction versus no calibration (<span class="arithmatex">\(d = 0.76\)</span>, <span class="arithmatex">\(p &lt; 10^{-6}\)</span>, bootstrap 95% CI [+3,180.69, +4,559.59]), and outperformed three naive behavioral baselines with statistical significance.</p>
+<p>However, our most consequential finding is that MaxDDStop &ndash; a simple equity drawdown threshold with no behavioral intelligence &ndash; outperforms CUSUM on drawdown reduction in 93.5% of strategies (<span class="arithmatex">\(d = 0.76\)</span>). This establishes that for pure risk mitigation, outcome-based monitoring (tracking the equity curve) is more effective than behavioral monitoring (tracking win rate deviation). CUSUM&rsquo;s value lies not in risk reduction but in behavioral diagnostics: identifying <em>why</em> performance has degraded, which informs strategy development and produces compliance-friendly audit trails.</p>
+<p>We report three negative results as contributions: BOCPD fails on sparse binary sequences; trade-level DQS achieves zero separation; and CUSUM loses to equity-based monitoring on its primary metric. These results collectively narrow the design space for future agent monitoring systems and suggest that production deployments should combine outcome-based protection (MaxDDStop) with behavioral diagnostics (CUSUM) rather than relying on either alone.</p>
+<p>Limitations include restriction to two cryptocurrency markets, grid-generated synthetic strategies, no live deployment validation, a fixed CUSUM threshold (<span class="arithmatex">\(h = 4.0\)</span>), and strategy dependence that inflates reported <span class="arithmatex">\(p\)</span>-values. The ETHUSDT 4h failure and the without-BTCUSDT-1h robustness check (where CUSUM vs. SimpleWR becomes insignificant at <span class="arithmatex">\(p = 0.179\)</span>) establish practical boundaries on CUSUM&rsquo;s applicability.</p>
+<p>Future work should extend validation to additional asset classes and timeframes, test on human-developed and ML-trained strategies, explore combined MaxDDStop + CUSUM systems, and most importantly, conduct live deployment studies. The question of whether CUSUM&rsquo;s diagnostic value translates to better long-term strategy management &ndash; even when MaxDDStop handles short-term risk &ndash; remains open and is the most promising direction for this research.</p>
+<p>The broader message is that as AI agents assume greater autonomy in financial markets, we need both safety nets and diagnostic tools. MaxDDStop is the safety net; CUSUM is the diagnostic. Neither alone is sufficient. The agent is the process; its trade outcomes are the quality measurements; and a well-designed monitoring system uses multiple control mechanisms, each serving a distinct purpose.</p>
+<hr />
+<h2>References</h2>
+<ul>
+<li>Adams, R. P., &amp; MacKay, D. J. C. (2007). Bayesian Online Changepoint Detection. <em>arXiv preprint arXiv:0710.3742</em>.</li>
+<li>Bailey, D. H., &amp; Lopez de Prado, M. (2014). The Deflated Sharpe Ratio: Correcting for Selection Bias, Backtest Overfitting, and Non-Normality. <em>Journal of Portfolio Management</em>, 40(5), 94&ndash;107.</li>
+<li>Gama, J., Zliobaite, I., Bifet, A., Pechenizkiy, M., &amp; Bouchachia, A. (2014). A Survey on Concept Drift Adaptation. <em>ACM Computing Surveys</em>, 46(4), 1&ndash;37.</li>
+<li>Kelly, J. L. (1956). A New Interpretation of Information Rate. <em>Bell System Technical Journal</em>, 35(4), 917&ndash;926.</li>
+<li>Kim, J., et al. (2025). ATLAS: Adaptive Trading with LLM AgentS Through Dynamic Prompt Optimization and Multi-Agent Coordination. <em>arXiv preprint arXiv:2510.15949</em>.</li>
+<li>Li, Y., Wang, Z., &amp; Huang, W. (2024). FinMem: A Performance-Enhanced LLM Trading Agent with Layered Memory and Character Design. In <em>Workshop on Financial Large Language Models, ICLR 2024</em>.</li>
+<li>Lopez de Prado, M. (2018). <em>Advances in Financial Machine Learning</em>. Wiley.</li>
+<li>Lu, J., Liu, A., Dong, F., Gu, F., Gama, J., &amp; Zhang, G. (2018). Learning Under Concept Drift: A Review. <em>IEEE Transactions on Knowledge and Data Engineering</em>, 31(12), 2346&ndash;2363.</li>
+<li>Montgomery, D. C. (2012). <em>Introduction to Statistical Quality Control</em> (7th ed.). Wiley.</li>
+<li>Page, E. S. (1954). Continuous Inspection Schemes. <em>Biometrika</em>, 41(1/2), 100&ndash;115.</li>
+<li>Schaul, T., Quan, J., Antonoglou, I., &amp; Silver, D. (2015). Prioritized Experience Replay. <em>arXiv preprint arXiv:1511.05952</em>.</li>
+<li>Shefrin, H., &amp; Statman, M. (1985). The Disposition to Sell Winners Too Early and Ride Losers Too Long: Theory and Evidence. <em>Journal of Finance</em>, 40(3), 777&ndash;790.</li>
+<li>Thorp, E. O. (2006). The Kelly Criterion in Blackjack, Sports Betting and the Stock Market. In <em>Handbook of Asset and Liability Management</em> (pp. 385&ndash;428). North-Holland.</li>
+<li>Tulving, E. (1972). Episodic and Semantic Memory. In E. Tulving &amp; W. Donaldson (Eds.), <em>Organization of Memory</em> (pp. 381&ndash;403). Academic Press.</li>
+<li>Woodall, W. H., &amp; Montgomery, D. C. (1999). Research Issues and Ideas in Statistical Process Control. <em>Journal of Quality Technology</em>, 31(4), 376&ndash;386.</li>
+<li>Xiao, Y., et al. (2025). TradingAgents: Multi-Agents LLM Financial Trading Framework. <em>arXiv preprint arXiv:2412.20138</em>.</li>
+<li>Yang, H., Liu, X. Y., Zhong, S., &amp; Walid, A. (2020). Deep Reinforcement Learning for Automated Stock Trading: An Ensemble Strategy. In <em>Proceedings of the First ACM International Conference on AI in Finance</em> (pp. 1&ndash;8).</li>
+</ul>
+<hr />
+<p><em>Code and data available at: https://github.com/mnemox-ai/tradememory-protocol</em></p>
+<p><em>Preprint &ndash; April 2026</em></p>
+</div>
+</body>
+</html>
