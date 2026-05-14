@@ -88,7 +88,8 @@ class Database:
                     execution_quality REAL,
                     lessons TEXT,
                     tags TEXT,
-                    grade TEXT
+                    grade TEXT,
+                    tenant_id TEXT
                 )
             """)
 
@@ -352,7 +353,7 @@ class Database:
             """)
 
             # Audit roots — daily Merkle roots over audit_chain.data_hash.
-            # tsa_token reserved for RFC 3161 TimeStampToken (Phase 1.5).
+            # tsa_token holds the RFC 3161 TimeStampToken (DER bytes).
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS audit_roots (
                     period_start TEXT PRIMARY KEY,
@@ -366,6 +367,21 @@ class Database:
                     tsa_token BLOB
                 )
             """)
+
+            # Multi-tenancy scaffold: tenant_id column on trade_records.
+            # NULL = legacy / default-tenant rows. Idempotent add for existing
+            # DBs that were created before v0.5.2.
+            cols = {row[1] for row in conn.execute(
+                "PRAGMA table_info(trade_records)"
+            ).fetchall()}
+            if "tenant_id" not in cols:
+                conn.execute(
+                    "ALTER TABLE trade_records ADD COLUMN tenant_id TEXT"
+                )
+                conn.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_trade_records_tenant
+                    ON trade_records(tenant_id)
+                """)
 
             conn.commit()
         finally:
@@ -412,13 +428,23 @@ class Database:
                 trade_data['trade_references'] = json.dumps(trade_data.get('references', []))
                 trade_data['tags'] = json.dumps(trade_data.get('tags', []))
 
+                # Default tenant_id to None when caller didn't supply one
+                # (v0.5.1 callers won't know about this field).
+                trade_data.setdefault('tenant_id', None)
+
                 cursor = conn.execute("""
-                    INSERT OR IGNORE INTO trade_records VALUES (
+                    INSERT OR IGNORE INTO trade_records (
+                        id, timestamp, symbol, direction, lot_size, strategy,
+                        confidence, reasoning, market_context, trade_references,
+                        exit_timestamp, exit_price, pnl, pnl_r, hold_duration,
+                        exit_reasoning, slippage, execution_quality, lessons,
+                        tags, grade, tenant_id
+                    ) VALUES (
                         :id, :timestamp, :symbol, :direction, :lot_size, :strategy,
                         :confidence, :reasoning, :market_context, :trade_references,
                         :exit_timestamp, :exit_price, :pnl, :pnl_r, :hold_duration,
                         :exit_reasoning, :slippage, :execution_quality, :lessons,
-                        :tags, :grade
+                        :tags, :grade, :tenant_id
                     )
                 """, trade_data)
 

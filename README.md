@@ -7,8 +7,8 @@
 <div align="center">
 
 [![PyPI](https://img.shields.io/pypi/v/tradememory-protocol?style=flat-square&color=blue)](https://pypi.org/project/tradememory-protocol/)
-[![Tests](https://img.shields.io/badge/tests-1%2C324_passed-brightgreen?style=flat-square)](https://github.com/mnemox-ai/tradememory-protocol/actions)
-[![MCP Tools](https://img.shields.io/badge/MCP_tools-17-blueviolet?style=flat-square)](https://smithery.ai/server/io.github.mnemox-ai/tradememory-protocol)
+[![Tests](https://img.shields.io/badge/tests-1%2C428_passed-brightgreen?style=flat-square)](https://github.com/mnemox-ai/tradememory-protocol/actions)
+[![MCP Tools](https://img.shields.io/badge/MCP_tools-20-blueviolet?style=flat-square)](https://smithery.ai/server/io.github.mnemox-ai/tradememory-protocol)
 [![Smithery](https://img.shields.io/badge/Smithery-listed-orange?style=flat-square)](https://smithery.ai/server/io.github.mnemox-ai/tradememory-protocol)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow?style=flat-square)](https://opensource.org/licenses/MIT)
 
@@ -147,22 +147,32 @@ Building a trading AI agent and want battle-tested memory architecture?
 
 ## Enterprise & Compliance
 
-Every trading decision your agent makes — including decisions **not** to trade — is recorded as a Trading Decision Record (TDR), SHA-256 hashed at creation for tamper detection.
+Every trading decision your agent makes — including decisions **not** to trade — is recorded as a Trading Decision Record (TDR). Per-record SHA-256 content hashes are linked into a forward-chained audit ledger; every UTC day is summarised by a Merkle root which itself chains across days. Tampering with any historical record invalidates every subsequent link.
 
 | Regulation | Requirement | TradeMemory Coverage |
 |------------|-------------|---------------------|
 | MiFID II Article 17 | Record every algorithmic trading decision factor | Full decision chain: conditions, filters, indicators, execution |
 | EU AI Act Article 14 | Human oversight of high-risk AI systems | Explainable reasoning + memory context for every decision |
-| EU AI Act Logging | Systematic logging of every AI action | Automatic per-decision TDR with structured JSON |
+| EU AI Act Article 12 | Automatic, tamper-resistant logs over system lifetime | Linked SHA-256 chain + daily Merkle roots (RFC 3161 TSA in Phase 1.5) |
 
 ```bash
-# Verify any record hasn't been tampered with
-GET /audit/verify/{trade_id}
-# → {"verified": true, "stored_hash": "a3f8c9...", "computed_hash": "a3f8c9..."}
+# Verify a single record hasn't been tampered with
+verify_audit_hash(trade_id="MT5-7047640363")
+# → {"verified": true, "chain_entry": {"sequence_num": 42, ...}}
+
+# Walk the entire chain (or a slice) end-to-end
+verify_audit_chain(from_seq=1, to_seq=None)
+# → {"verified": true, "checked_count": 1284, "first_break_at": null}
+
+# Daily Merkle root — single 32-byte anchor over every TDR for that day
+get_daily_root(date="2026-05-14")
+# → {"verified": true, "root_hash": "a05544...", "record_count": 18}
 
 # Bulk export for regulatory submission
 GET /audit/export?strategy=VolBreakout&start=2026-03-01&format=jsonl
 ```
+
+See [LIMITATIONS.md](LIMITATIONS.md) for the full audit-chain maturity statement, including what's not in v0.5.2 yet (TSA timestamping, external anchoring, zkML proof of inference).
 
 **Need a custom deployment for your fund?** → [dev@mnemox.ai](mailto:dev@mnemox.ai)
 
@@ -171,8 +181,8 @@ GET /audit/export?strategy=VolBreakout&start=2026-03-01&format=jsonl
 - **Never touches API keys.** TradeMemory does not execute trades, move funds, or access wallets.
 - **Read and record only.** Your agent passes decision context to TradeMemory. It stores it. That's it.
 - **No external network calls.** The server runs locally. No data is sent to third parties.
-- **SHA-256 tamper detection.** Every record is hashed at creation. Verify integrity anytime.
-- **1,324 tests passing.** Full test suite with CI.
+- **SHA-256 chained audit ledger.** Every record is hashed at creation and linked to the previous record. Daily Merkle roots anchor the chain. Verify integrity at the record, slice, or day level.
+- **1,428 tests passing.** Full test suite with CI.
 
 ## Research Status
 

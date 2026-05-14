@@ -37,15 +37,16 @@ from .owm.migration import (
 from .reflection import ReflectionEngine
 from .state import StateManager
 
-# NOTE: No authentication on endpoints. Server binds to 127.0.0.1 by default.
-# For network exposure, add API key middleware (see docs/SECURITY.md).
+# Auth: bearer-token middleware. Opt-in via TRADEMEMORY_API_KEYS.
+# When unset, all endpoints stay open (preserves v0.5.1 localhost behaviour).
+from .auth import BearerAuthMiddleware, auth_enabled  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="TradeMemory Protocol",
     description="AI Agent Trading Memory & Adaptive Decision Layer",
-    version="0.5.1"
+    version="0.5.2"
 )
 
 # CORS middleware — allow dashboard dev server
@@ -60,6 +61,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Bearer-token auth middleware. No-op if TRADEMEMORY_API_KEYS is unset.
+app.add_middleware(BearerAuthMiddleware)
+if auth_enabled():
+    logger.info("TradeMemory auth enabled — bearer tokens required.")
+else:
+    logger.info(
+        "TradeMemory auth DISABLED (TRADEMEMORY_API_KEYS unset). "
+        "All endpoints open. Set TRADEMEMORY_API_KEYS=key:tenant to enable."
+    )
 
 # Dashboard API router
 from .dashboard_api import dashboard_router  # noqa: E402

@@ -282,11 +282,19 @@ class ChainBuilder:
         ).fetchone()
         return DailyRoot(*row) if row else None
 
-    def build_daily_root(self, date_str: str) -> DailyRoot:
+    def build_daily_root(
+        self, date_str: str, request_tsa: bool = False
+    ) -> DailyRoot:
         """Build (or rebuild) the Merkle root for a single UTC date.
 
         Returns the DailyRoot. If a root already exists for this date, it is
         overwritten with the recomputed value (use for backfill / repair).
+
+        If `request_tsa=True`, the root hash is submitted to the configured
+        RFC 3161 Time Stamp Authority (default freetsa.org) and the returned
+        TimeStampToken is stored as a BLOB in `audit_roots.tsa_token`. TSA
+        failures are logged but do NOT abort the root build — timestamping
+        is an additive attestation layer, not a precondition for the chain.
         """
         period_start, period_end = self._utc_day_bounds(date_str)
 
@@ -306,14 +314,30 @@ class ChainBuilder:
         prev_root_hash = prev_root.root_hash if prev_root else ZERO_HASH
         generated_at = datetime.now(timezone.utc).isoformat()
 
+        # Optional TSA attestation. Failures are non-fatal.
+        tsa_token: Optional[bytes] = None
+        if request_tsa and leaves:
+            try:
+                from .tsa import TSAError, request_timestamp
+
+                resp = request_timestamp(root_hash)
+                tsa_token = resp.response_der
+            except Exception as e:  # noqa: BLE001
+                import logging
+                logging.getLogger(__name__).warning(
+                    "TSA timestamping failed for %s root %s: %s",
+                    period_start, root_hash[:16], e,
+                )
+
         self.conn.execute(
             "INSERT OR REPLACE INTO audit_roots "
             "(period_start, period_end, root_hash, prev_root_hash, "
-            "record_count, first_sequence, last_sequence, generated_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "record_count, first_sequence, last_sequence, generated_at, "
+            "tsa_token) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 period_start, period_end, root_hash, prev_root_hash,
-                len(leaves), first_seq, last_seq, generated_at,
+                len(leaves), first_seq, last_seq, generated_at, tsa_token,
             ),
         )
 

@@ -222,6 +222,7 @@ def _insert_trade_with_date(
         "lessons": None,
         "tags": json.dumps([]),
         "grade": None,
+        "tenant_id": None,
     }
     conn = db._get_connection()
     try:
@@ -231,7 +232,7 @@ def _insert_trade_with_date(
                 :confidence, :reasoning, :market_context, :trade_references,
                 :exit_timestamp, :exit_price, :pnl, :pnl_r, :hold_duration,
                 :exit_reasoning, :slippage, :execution_quality, :lessons,
-                :tags, :grade
+                :tags, :grade, :tenant_id
             )""",
             trade_data,
         )

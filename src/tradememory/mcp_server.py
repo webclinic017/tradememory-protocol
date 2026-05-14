@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional
 from fastmcp import FastMCP
 
 from .db import Database
-from .embedding import embed_trade_context
+from .embedding import embed_trade_context, get_embedding_backend
 from .hybrid_recall import hybrid_recall
 from .owm import ContextVector, outcome_weighted_recall
 from .owm.anti_resonance import compute_recall_consonance
@@ -411,6 +411,8 @@ async def recall_memories(
     strategy_name: Optional[str] = None,
     memory_types: Optional[List[str]] = None,
     limit: int = 10,
+    use_hybrid: bool = True,
+    hybrid_alpha: float = 0.3,
 ) -> dict:
     """Recall memories using OWM outcome-weighted scoring.
 
@@ -426,6 +428,11 @@ async def recall_memories(
         strategy_name: Optional strategy filter
         memory_types: Types to query (default: ["episodic", "semantic"])
         limit: Max results (default 10)
+        use_hybrid: If True (default), enable vector + OWM hybrid scoring when
+            an embedding backend is available. Falls back to pure OWM silently
+            when sentence-transformers is not installed.
+        hybrid_alpha: Vector vs OWM blend weight [0..1] when hybrid is active.
+            0.0 = pure OWM, 1.0 = pure vector. Default 0.3 (OWM-dominant).
     """
     db = _get_db()
     symbol_upper = symbol.upper()
@@ -508,11 +515,64 @@ async def recall_memories(
             "consecutive_losses": affective.get("consecutive_losses", 0),
         }
 
+    # Hybrid embedding path. When sentence-transformers isn't installed,
+    # backend is None and we fall back to the pure-OWM path inside
+    # hybrid_recall (no behavioural change vs v0.5.1).
+    query_embedding = None
+    if use_hybrid:
+        backend = get_embedding_backend()
+        if backend is not None:
+            try:
+                query_text_parts = [f"symbol: {symbol_upper}"]
+                if context_regime:
+                    query_text_parts.append(f"regime: {context_regime}")
+                if _session:
+                    query_text_parts.append(f"session: {_session}")
+                if strategy_name:
+                    query_text_parts.append(f"strategy: {strategy_name}")
+                query_text_parts.append(f"context: {market_context}")
+                query_embedding = backend.embed("; ".join(query_text_parts))
+            except Exception as e:
+                logger.warning("query embedding failed, falling back to OWM: %s", e)
+                query_embedding = None
+
+            # Embed candidates on-the-fly. This is O(N) embed calls per recall.
+            # Production deployments should persist embeddings on insert
+            # (Task 8 follow-up). For now, on-the-fly keeps the hot path
+            # exercising the hybrid scoring.
+            if query_embedding is not None:
+                for c in candidates:
+                    if c.get("embedding"):
+                        continue
+                    ctx = c.get("context") or {}
+                    parts = []
+                    if c.get("strategy"):
+                        parts.append(f"strategy: {c['strategy']}")
+                    if c.get("direction"):
+                        parts.append(f"direction: {c['direction']}")
+                    if ctx.get("regime"):
+                        parts.append(f"regime: {ctx['regime']}")
+                    if ctx.get("session"):
+                        parts.append(f"session: {ctx['session']}")
+                    if c.get("reflection"):
+                        parts.append(f"reflection: {c['reflection']}")
+                    elif c.get("proposition"):
+                        parts.append(f"proposition: {c['proposition']}")
+                    if not parts:
+                        continue
+                    try:
+                        c["embedding"] = backend.embed("; ".join(parts))
+                    except Exception:
+                        # Per-candidate failures are non-fatal; skip embedding
+                        # that one so hybrid_recall sees no vector for it.
+                        pass
+
     scored = hybrid_recall(
         query_context=query_context,
-        query_embedding=None,  # No embedding yet — falls back to pure OWM
+        query_embedding=query_embedding,
         memories=candidates,
         affective_state=affective_state,
+        alpha=hybrid_alpha,
         limit=limit,
     )
 
@@ -1156,7 +1216,12 @@ async def verify_audit_chain(
 
 
 @mcp.tool()
-async def get_daily_root(date: str, rebuild: bool = False) -> dict:
+async def get_daily_root(
+    date: str,
+    rebuild: bool = False,
+    request_tsa: bool = False,
+    include_token: bool = False,
+) -> dict:
     """Get (or rebuild) the daily Merkle root for a UTC date.
 
     The Merkle root summarises every audit_chain entry whose `chained_at`
@@ -1165,22 +1230,35 @@ async def get_daily_root(date: str, rebuild: bool = False) -> dict:
 
     Args:
         date: Date in YYYY-MM-DD format (or full ISO datetime).
-        rebuild: If True, recompute and overwrite the stored root. If False
-            (default), return the existing stored root and a verification
-            check vs. a fresh recomputation.
+        rebuild: If True, recompute and overwrite the stored root.
+        request_tsa: If True (and rebuild=True), submit the root to the
+            configured RFC 3161 TSA (default freetsa.org) and store the
+            returned TimeStampToken. TSA failures are logged but do not
+            abort the rebuild.
+        include_token: If True, include a base64-encoded `tsa_token`
+            in the response (default False — the token can be large).
 
     Returns:
         period_start, period_end, root_hash, prev_root_hash, record_count,
-        first_sequence, last_sequence, generated_at, verified (when not rebuilding).
+        first_sequence, last_sequence, generated_at, has_tsa_token, plus:
+          - on rebuild=True: `rebuilt: True`, optionally `tsa_token` base64.
+          - on rebuild=False: `verified` flag from a fresh recomputation.
     """
+    import base64
     from .audit.chain import ChainBuilder
 
     database = _get_db()
     with database.get_connection() as conn:
         builder = ChainBuilder(conn)
         if rebuild:
-            root = builder.build_daily_root(date)
-            return {
+            root = builder.build_daily_root(date, request_tsa=request_tsa)
+            # Re-read the token column (build_daily_root may have stored it).
+            row = conn.execute(
+                "SELECT tsa_token FROM audit_roots WHERE period_start = ?",
+                (root.period_start,),
+            ).fetchone()
+            token_bytes = row["tsa_token"] if row else None
+            result = {
                 "period_start": root.period_start,
                 "period_end": root.period_end,
                 "root_hash": root.root_hash,
@@ -1189,13 +1267,24 @@ async def get_daily_root(date: str, rebuild: bool = False) -> dict:
                 "first_sequence": root.first_sequence,
                 "last_sequence": root.last_sequence,
                 "generated_at": root.generated_at,
+                "has_tsa_token": token_bytes is not None,
                 "rebuilt": True,
             }
+            if include_token and token_bytes:
+                result["tsa_token_b64"] = base64.b64encode(token_bytes).decode("ascii")
+            return result
         verify = builder.verify_daily_root(date)
-        return {
-            "date": date,
-            **verify,
-        }
+        # Token presence info on verify path too.
+        period_start = ChainBuilder._utc_day_bounds(date)[0]
+        row = conn.execute(
+            "SELECT tsa_token FROM audit_roots WHERE period_start = ?",
+            (period_start,),
+        ).fetchone()
+        token_bytes = row["tsa_token"] if row else None
+        out = {"date": date, "has_tsa_token": token_bytes is not None, **verify}
+        if include_token and token_bytes:
+            out["tsa_token_b64"] = base64.b64encode(token_bytes).decode("ascii")
+        return out
 
 
 # ---------------------------------------------------------------------------
